@@ -1,0 +1,73 @@
+version: "3"
+
+volumes:
+  traefik-letsencrypt:
+  factorio_data:
+
+services:
+  # https://github.com/OpenFactorioServerManager/factorio-server-manager/wiki/Installation-and-Usage
+  factorio:
+    image: ofsm/ofsm:latest
+    container_name: factorio
+    environment:
+      - FACTORIO_VERSION=stable
+    volumes:
+      - factorio_data:/opt/fsm-data
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.fsm.rule=Host(`factorio.${DOMAIN_NAME}`)
+      - traefik.http.routers.fsm.tls.certresolver=letsencrypt
+      - traefik.http.routers.fsm.entrypoints=websecure
+      - traefik.http.services.fsm.loadbalancer.server.port=80
+      - traefik.udp.routers.fsm.entrypoints=factorio
+      - traefik.udp.services.fsm.loadbalancer.server.port=34197
+
+  traefik:
+    image: traefik:v2.7
+    container_name: traefik
+    command:
+      - --api=true
+      - --api.dashboard=true
+
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.factorio.address=:34197/udp
+
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+
+      - --providers.docker
+      - --providers.docker.exposedByDefault=false
+      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+    restart: unless-stopped
+    ports:
+      - 80:80
+      - 443:443
+      - 34197:34197/udp # factorio game port
+    volumes:
+      - traefik-letsencrypt:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN_NAME}`)
+      - traefik.http.routers.traefik.service=api@internal
+      - traefik.http.routers.traefik.middlewares=auth
+      - traefik.http.routers.traefik.tls.certresolver=letsencrypt
+      - traefik.http.routers.traefik.entrypoints=websecure
+      - traefik.http.middlewares.auth.basicauth.users=admin:$$apr1$$a.26sZrk$$SMbFdK45KtXsHpBXsletF1 # admin:123321
+
+  dozzle:
+    container_name: dozzle
+    image: amir20/dozzle:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.dozzle.rule=Host(`dozzle.${DOMAIN_NAME}`)
+      - traefik.http.routers.dozzle.middlewares=auth
+      - traefik.http.routers.dozzle.tls.certresolver=letsencrypt
+      - traefik.http.routers.dozzle.entrypoints=websecure
+      - traefik.http.middlewares.auth.basicauth.users=admin:$$apr1$$a.26sZrk$$SMbFdK45KtXsHpBXsletF1 # admin:123321
+      - traefik.http.services.dozzle.loadbalancer.server.port=8080
