@@ -23,7 +23,9 @@ services:
       - traefik.udp.services.fsm.loadbalancer.server.port=34197
 
   traefik:
-    image: traefik:v2.7
+    build:
+      context: .
+      dockerfile: Dockerfile.traefik
     container_name: traefik
     command:
       - --api=true
@@ -56,7 +58,7 @@ services:
       - traefik.http.routers.traefik.middlewares=auth
       - traefik.http.routers.traefik.tls.certresolver=letsencrypt
       - traefik.http.routers.traefik.entrypoints=websecure
-      - traefik.http.middlewares.auth.basicauth.users=admin:$$apr1$$a.26sZrk$$SMbFdK45KtXsHpBXsletF1 # admin:123321
+      - traefik.http.middlewares.auth.basicauth.usersfile=.htpasswd
 
   dozzle:
     container_name: dozzle
@@ -69,5 +71,4 @@ services:
       - traefik.http.routers.dozzle.middlewares=auth
       - traefik.http.routers.dozzle.tls.certresolver=letsencrypt
       - traefik.http.routers.dozzle.entrypoints=websecure
-      - traefik.http.middlewares.auth.basicauth.users=admin:$$apr1$$a.26sZrk$$SMbFdK45KtXsHpBXsletF1 # admin:123321
-      - traefik.http.services.dozzle.loadbalancer.server.port=8080
+      - traefik.http.middlewares.auth.basicauth.usersfile=.htpasswd
