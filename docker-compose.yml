@@ -3,6 +3,7 @@ version: "3"
 volumes:
   traefik-letsencrypt:
   factorio_data:
+  vrising_data:
 
 services:
   # https://github.com/OpenFactorioServerManager/factorio-server-manager/wiki/Installation-and-Usage
@@ -22,6 +23,27 @@ services:
       - traefik.udp.routers.fsm.entrypoints=factorio
       - traefik.udp.services.fsm.loadbalancer.server.port=34197
 
+  # https://github.com/TrueOsiris/docker-vrising
+  vrising:
+    container_name: vrising
+    image: trueosiris/vrising
+    network_mode: bridge
+    environment:
+      - TZ=Europe/Paris
+      - SERVERNAME=vrisingDocker
+    volumes:
+      - vrising_data:/mnt/vrising/server
+      - vrising_data:/mnt/vrising/persistentdata
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.vrising.rule=Host(`vrising.${DOMAIN_NAME}`)
+      - traefik.http.routers.vrising.tls.certresolver=letsencrypt
+      - traefik.http.routers.vrising.entrypoints=websecure
+      - traefik.http.services.vrising.loadbalancer.server.port=80
+      - traefik.udp.routers.vrising.entrypoints=vrising1,vrising2
+      - traefik.udp.services.vrising.loadbalancer.server.port=9877
+      - traefik.udp.services.vrising.loadbalancer.server.port=9876
+
   traefik:
     build:
       context: .
@@ -34,6 +56,8 @@ services:
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
       - --entrypoints.factorio.address=:34197/udp
+      - --entrypoints.vrising1.address=:9877/udp
+      - --entrypoints.vrising2.address=:9876/udp
 
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
@@ -63,6 +87,7 @@ services:
   dozzle:
     container_name: dozzle
     image: amir20/dozzle:latest
+    restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     labels:
