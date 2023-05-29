@@ -5,6 +5,7 @@ volumes:
   factorio_data:
   vrising_data:
   filebrowser_data:
+  blog_data:
 
 services:
   # https://github.com/filebrowser/filebrowser
@@ -15,6 +16,7 @@ services:
       - /:/data
       - vrising_data:/data/vrising
       - factorio_data:/data/factorio
+      - blog_data:/data/blog
       - filebrowser_data:/config
     environment:
       - FB_BASEURL=/
@@ -79,6 +81,7 @@ services:
 
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
+      - --entrypoints.blog-upload.address=:873
       - --entrypoints.factorio.address=:34197/udp
       # - --entrypoints.vrising1.address=:9877/udp
       # - --entrypoints.vrising2.address=:9876/udp
@@ -94,6 +97,7 @@ services:
     restart: unless-stopped
     ports:
       - 80:80
+      - 873:873
       - 443:443
       - 34197:34197/udp # factorio game port
       # - 9877:9877/udp # vrising1 game port
@@ -124,3 +128,35 @@ services:
       - traefik.http.routers.dozzle.tls.certresolver=letsencrypt
       - traefik.http.routers.dozzle.entrypoints=websecure
       - traefik.http.middlewares.auth.basicauth.usersfile=.htpasswd
+
+  # https://hub.docker.com/_/nginx
+  blog:
+    container_name: nginx
+    restart: unless-stopped
+    image: nginx:1.25.0-alpine3.17
+    volumes:
+      - blog_data:/usr/share/nginx/html:ro
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.blog.rule=Host(`blog.${DOMAIN_NAME}`)
+      - traefik.http.routers.blog.tls.certresolver=letsencrypt
+      - traefik.http.routers.blog.entrypoints=websecure
+
+  # https://hub.docker.com/r/axiom/rsync-server
+  blog-upload:
+    image: axiom/rsync-server
+    container_name: blog-upload
+    restart: unless-stopped
+    volumes:
+      - blog_data:/data
+    environment:
+      - USERNAME=${SSH_USERNAME}
+      - PASSWORD=${SSH_PASSWORD}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.blog-upload.rule=Host(`blog-upload.${DOMAIN_NAME}`)
+      - traefik.http.routers.blog-upload.tls.certresolver=letsencrypt
+      - traefik.http.routers.blog-upload.entrypoints=websecure
+      - traefik.tcp.routers.blog-upload.entrypoints=blog-upload
+      - traefik.tcp.routers.blog-upload.rule=HostSNI(`*`)
+      - traefik.tcp.services.blog-upload.loadbalancer.server.port=873
