@@ -6,6 +6,8 @@ volumes:
   vrising_data:
   filebrowser_data:
   blog_data:
+  counterstrike_data:
+  quake3_data:
 
 services:
   # https://github.com/filebrowser/filebrowser
@@ -16,6 +18,7 @@ services:
       - /:/data
       - vrising_data:/data/vrising
       - factorio_data:/data/factorio
+      - quake3_data:/data/quake3
       - blog_data:/data/blog
       - filebrowser_data:/config
     environment:
@@ -83,11 +86,17 @@ services:
       - --entrypoints.websecure.address=:443
       - --entrypoints.blog-upload.address=:873
       - --entrypoints.factorio.address=:34197/udp
+      # - --entrypoints.cs16.address=:27015/udp
+      # - --entrypoints.q3.address=:27960/udp
+      # - --entrypoints.q3h.address=:27960
+      # - --entrypoints.q3js.address=:27960
       # - --entrypoints.vrising1.address=:9877/udp
       # - --entrypoints.vrising2.address=:9876/udp
 
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
+
+      - --log.level=DEBUG
 
       - --providers.docker
       - --providers.docker.exposedByDefault=false
@@ -96,12 +105,16 @@ services:
       - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
     restart: unless-stopped
     ports:
-      - 80:80
-      - 873:873
-      - 443:443
+      - 80:80 # http
+      - 443:443 # https
+      - 873:873 # blog-upload rsync port
+      # - 27960:27960/udp # quake3 game port
+      # - 27960:27960 # quake3 game port
       - 34197:34197/udp # factorio game port
       # - 9877:9877/udp # vrising1 game port
       # - 9876:9876/udp # vrising2 game port
+      # - 27015:27015 # cs16 game port
+      # - 27015:27015/udp # cs16 game port
     volumes:
       - traefik-letsencrypt:/letsencrypt
       - /var/run/docker.sock:/var/run/docker.sock
@@ -160,3 +173,65 @@ services:
       - traefik.tcp.routers.blog-upload.entrypoints=blog-upload
       - traefik.tcp.routers.blog-upload.rule=HostSNI(`*`)
       - traefik.tcp.services.blog-upload.loadbalancer.server.port=873
+
+  # https://hub.docker.com/r/febley/counter-strike_server
+  # counter-strike_server:
+  #   container_name: counter-strike_server
+  #   image: febley/counter-strike_server:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     - PORT=27015
+  #     - MAP=de_dust2
+  #     - MAXPLAYERS=16
+  #     - SV_LAN=0
+  #   volumes:
+  #     - counterstrike_data:/hlds/cstrike
+  #   labels:
+  #     - traefik.enable=true
+  #     - traefik.http.routers.cs16.rule=Host(`cs16.${DOMAIN_NAME}`)
+  #     - traefik.http.routers.cs16.tls.certresolver=letsencrypt
+  #     - traefik.http.routers.cs16.entrypoints=websecure
+  #     - traefik.http.services.cs16.loadbalancer.server.port=27015
+  #     - traefik.udp.routers.cs16.entrypoints=cs16
+  #     - traefik.udp.services.cs16.loadbalancer.server.port=27015
+
+  # https://github.com/fpiesche/docker-ioquake3-server
+  # quake3:
+  #   image: florianpiesche/ioquake3-server
+  #   container_name: quake3_server
+  #   restart: unless-stopped
+  #   volumes:
+  #     - quake3_data:/usr/local/games/quake3/baseq3
+  #   environment:
+  #     SERVER_MOTD: "UI Foundation Quake 3 Serve"
+  #     # ADMIN_PASSWORD: "uifoundation"
+  #     # SERVER_ARGS: "+set net_ip 172.18.0.3"
+  #   labels:
+  #     - traefik.enable=true
+  #     - traefik.http.routers.quake3.rule=Host(`quake3.${DOMAIN_NAME}`)
+  #     - traefik.http.routers.quake3.tls.certresolver=letsencrypt
+  #     - traefik.http.routers.quake3.entrypoints=websecure
+  #     - traefik.http.services.quake3.loadbalancer.server.port=27960
+  #     - traefik.udp.routers.quake3.entrypoints=q3,q3h
+  #     - traefik.udp.services.quake3.loadbalancer.server.port=27960
+
+  # https://github.com/treyyoder/quakejs-docker
+  # HTTP only, need to disable redirect to HTTPS to make it work
+  # quake3js:
+  #   image: treyyoder/quakejs:latest
+  #   container_name: quake3js
+  #   restart: unless-stopped
+  #   volumes:
+  #     - quake3_data:/usr/local/games/quake3/baseq3
+  #   labels:
+  #     - traefik.enable=true
+
+  #     - traefik.http.routers.q3js.service=q3js
+  #     - traefik.http.routers.q3js.rule=Host(`q3js.${DOMAIN_NAME}`)
+  #     - traefik.http.routers.q3js.entrypoints=web
+  #     - traefik.http.services.q3js.loadbalancer.server.port=80
+
+  #     - traefik.http.routers.q3js2.service=q3js2
+  #     - traefik.http.routers.q3js2.rule=Host(`q3js.${DOMAIN_NAME}`)
+  #     - traefik.http.routers.q3js2.entrypoints=q3js
+  #     - traefik.http.services.q3js2.loadbalancer.server.port=27960
