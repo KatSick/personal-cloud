@@ -1,0 +1,5 @@
+from mxpv/podsync:latest
+
+run pip uninstall yt-dlp
+run pip install yt-dlp
+copy podsync.toml /app/config.toml

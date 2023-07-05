@@ -1,0 +1,19 @@
+[server]
+port = 80
+# Bind a specific IP addresses for server ,"*": bind all IP addresses which is default option, localhost or 127.0.0.1  bind a single IPv4 address
+bind_address = "*"
+hostname = "https://podsync.katsick.cloud"
+
+[storage]
+  [storage.local]
+  data_dir = "/data/podsync/"
+
+[tokens]
+youtube = "PASTE YOUR API KEY HERE"
+
+[feeds]
+    [feeds.POPLAVA]
+    url = "https://www.youtube.com/channel/UCwCkRo2WQx_9JRWISLC47fw"
+    page_size = 2
+    format = "audio"
+    opml = true

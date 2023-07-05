@@ -8,6 +8,7 @@ volumes:
   blog_data:
   counterstrike_data:
   quake3_data:
+  podsync_data:
 
 services:
   # https://github.com/filebrowser/filebrowser
@@ -20,6 +21,7 @@ services:
       - factorio_data:/data/factorio
       - quake3_data:/data/quake3
       - blog_data:/data/blog
+      - podsync_data:/data/podsync
       - filebrowser_data:/config
       - traefik-letsencrypt:/data/letsencrypt
     environment:
@@ -160,6 +162,24 @@ services:
       - traefik.http.routers.dozzle.tls.certresolver=letsencrypt
       - traefik.http.routers.dozzle.entrypoints=websecure
       - traefik.http.middlewares.auth.basicauth.usersfile=.htpasswd
+
+  # https://github.com/mxpv/podsync
+  podsync:
+    container_name: podsync
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile.podsync
+    volumes:
+      - podsync_data:/data
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.podsync.rule=Host(`podsync.${DOMAIN_NAME}`)
+      # - traefik.http.routers.podsync.middlewares=auth
+      - traefik.http.routers.podsync.tls.certresolver=letsencrypt
+      - traefik.http.routers.podsync.entrypoints=websecure
+      - traefik.http.services.podsync.loadbalancer.server.port=80
+      # - traefik.http.middlewares.auth.basicauth.usersfile=.htpasswd
 
   # https://hub.docker.com/_/nginx
   blog:
