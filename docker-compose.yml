@@ -21,6 +21,7 @@ services:
       - quake3_data:/data/quake3
       - blog_data:/data/blog
       - filebrowser_data:/config
+      - traefik-letsencrypt:/data/letsencrypt
     environment:
       - FB_BASEURL=/
     restart: unless-stopped
@@ -95,7 +96,8 @@ services:
 
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
-
+      - --entrypoints.websecure.http3
+      - --experimental.http3=true
       - --log.level=DEBUG
 
       - --providers.docker
@@ -106,7 +108,8 @@ services:
     restart: unless-stopped
     ports:
       - 80:80 # http
-      - 443:443 # https
+      - 443:443/tcp # https
+      - 443:443/udp # https
       - 873:873 # blog-upload rsync port
       # - 27960:27960/udp # quake3 game port
       # - 27960:27960 # quake3 game port
@@ -127,11 +130,27 @@ services:
       - traefik.http.routers.traefik.entrypoints=websecure
       - traefik.http.middlewares.auth.basicauth.usersfile=.htpasswd
 
+  # https://github.com/ldez/traefik-certs-dumper/blob/master/docs/docker-compose-traefik-v2.yml
+  traefik-certs-dumper:
+    image: ldez/traefik-certs-dumper:v2.8.1
+    container_name: traefik-certs-dumper
+    restart: unless-stopped
+    entrypoint: sh -c '
+      apk add jq
+      ; while ! [ -e /data/acme.json ]
+      || ! [ `jq ".[] | .Certificates | length" /data/acme.json` != 0 ]; do
+      sleep 1
+      ; done
+      && traefik-certs-dumper file --domain-subdir=true --crt-ext=.pem --key-ext=.pem --version v2 --watch
+      --source /data/acme.json --dest /data/certs'
+    volumes:
+      - traefik-letsencrypt:/data
+
   # https://github.com/amir20/dozzle
   dozzle:
     container_name: dozzle
-    image: amir20/dozzle:v4.10.11
     restart: unless-stopped
+    image: amir20/dozzle:v4.10.11
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     labels:
@@ -146,9 +165,15 @@ services:
   blog:
     container_name: nginx
     restart: unless-stopped
-    image: nginx:1.25.0-alpine3.17
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+    environment:
+      - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx
+      - NGINX_HOST=blog.${DOMAIN_NAME}
     volumes:
       - blog_data:/usr/share/nginx/html:ro
+      - traefik-letsencrypt:/etc/letsencrypt
     labels:
       - traefik.enable=true
       - traefik.http.routers.blog.rule=Host(`blog.${DOMAIN_NAME}`)
